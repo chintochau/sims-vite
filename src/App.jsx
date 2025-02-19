@@ -1,136 +1,110 @@
 import { useEffect, useState } from "react";
+import { getColorForGrid } from "./functions/mapUtils";
+import AgentDetail from "./components/AgentDetail";
+import Map from "./components/Map";
+import { updateAgentData } from "./functions/dbUtils";
 const baseUrl = "http://localhost:3000";
 
 function App() {
   const [agents, setAgents] = useState([]);
+  const [worldGrid, setWorldGrid] = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [shouldRefresh, setShouldRefresh] = useState(true);
 
   const getData = async () => {
     const response = await fetch(`${baseUrl}/sims/data`);
     const data = await response.json();
-    console.log(data.agents);
     setAgents(data.agents);
+    setWorldGrid(data.world.grid);
+  };
+
+  const moveObject = async (oldPosition, newPosition, agentId) => {
+    if (agentId) {
+      const response = await updateAgentData(agentId, {
+        location: { x: newPosition.x, y: newPosition.y },
+      });
+      setShouldRefresh(true);
+      return response;
+    }
+
+    const response = await fetch(`${baseUrl}/sims/map/object/move`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ oldPosition, newPosition, agentId }),
+    });
+    const data = await response.json();
+    setShouldRefresh(true);
   };
 
   useEffect(() => {
-    getData();
-  }, []);
+    if (shouldRefresh) {
+      getData();
+      setShouldRefresh(false);
+    }
+  }, [shouldRefresh]);
 
   return (
-    <div className="flex flex-col items-center w-full h-screen justify-center bg-slate-950">
-      <h1 className="text-5xl font-bold text-white my-2">AI-Sims</h1>
-      <div className="flex ">
-        {/* <PhaserGame ref={phaserRef} /> */}
-        {/* <GameMenu /> */}
-        {agents &&
-          agents.map((agent, index) => (
-            <CharacterComponent key={index} character={agent} />
-          ))}
+    <div className="flex w-full ">
+      <div className="flex-col items-center flex-[2]  ">
+        <div className="sticky top-0 ">
+          <Map
+            agents={agents}
+            worldGrid={worldGrid}
+            setSelectedAgent={setSelectedAgent}
+            moveObject={moveObject}
+          />
+          <div className="px-8 py-2">
+            <AgentDetail
+              selectedAgent={selectedAgent}
+              setShouldRefresh={setShouldRefresh}
+            />
+          </div>
+        </div>
       </div>
 
-      <GridComponent agents={agents} />
+      <div className="flex flex-col flex-[1]">
+        {agents &&
+          agents.map((agent, index) => (
+            <CharacterComponent
+              key={index}
+              character={agent}
+              setSelectedAgent={setSelectedAgent}
+            />
+          ))}
+      </div>
     </div>
   );
 }
-const CharacterComponent = ({ character }) => {
+const CharacterComponent = ({ character, setSelectedAgent }) => {
   return (
-    <div className="bg-white shadow-lg rounded-lg p-6 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">
-        {character.name}
-      </h2>
-      <ul className="space-y-3 overflow-y-auto max-h-60">
-        <li className="border-b pb-2">
+    <div className="p-2 border border-gray-300 shadow rounded-md">
+      <h2 className="text-xl font-bold mb-4">{character.name}</h2>
+      <ul className="space-y-1 overflow-y-auto max-h-60 text-sm">
+        <li className="">
           <strong className="text-gray-700">Current Action:</strong>{" "}
-          <span className="text-gray-600">{character.currentAction}</span>
+          <span className="">{character.currentAction}</span>
         </li>
-        <li className="border-b pb-2">
+        <li className="">
           <strong className="text-gray-700">Goal:</strong>{" "}
-          <span className="text-gray-600">{character.goal}</span>
+          <span className="">{character.goal}</span>
         </li>
-        <li className="border-b pb-2">
+        <li className="">
           <strong className="text-gray-700">Location:</strong>{" "}
-          <span className="text-gray-600">
+          <span className="">
             ({character.location.x}, {character.location.y})
           </span>
         </li>
-        <li className="border-b pb-2">
-          <strong className="text-gray-700">Memory:</strong>
-          <ul className="pl-4 mt-2 space-y-2">
-            <li>
-              <strong className="text-gray-700">Schedule:</strong>{" "}
-              <span className="text-gray-600">{character.memory.schedule}</span>
-            </li>
-            <li>
-              <strong className="text-gray-700">Personality:</strong>{" "}
-              <span className="text-gray-600">
-                {character.memory.personality}
-              </span>
-            </li>
-            <li>
-              <strong className="text-gray-700">Past Observations:</strong>{" "}
-              <span className="text-gray-600">
-                {character.memory.pastObservations.length} observations
-              </span>
-            </li>
-            <li>
-              <strong className="text-gray-700">Reflections:</strong>{" "}
-              <span className="text-gray-600">
-                {character.memory.reflections.length} reflections
-              </span>
-            </li>
-          </ul>
-        </li>
-        <li className="border-b pb-2">
-          <strong className="text-gray-700">Name:</strong>{" "}
-          <span className="text-gray-600">{character.name}</span>
-        </li>
-        <li className="border-b pb-2">
+        <li className="">
           <strong className="text-gray-700">State:</strong>{" "}
-          <span className="text-gray-600">{character.state}</span>
+          <span className="">{character.state}</span>
         </li>
-        <li className="border-b pb-2">
+        <li className="">
           <strong className="text-gray-700">ID:</strong>{" "}
-          <span className="text-gray-600">{character._id}</span>
-        </li>
-        <li>
-          <strong className="text-gray-700">Version:</strong>{" "}
-          <span className="text-gray-600">{character.__v}</span>
+          <span className="">{character._id}</span>
         </li>
       </ul>
-    </div>
-  );
-};
-
-const GridComponent = ({ agents }) => {
-  const gridSize = 50;
-
-  const grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
-
-  agents.forEach((agent) => {
-    const { x, y } = agent.location;
-    // each cell is 32*32, so we need to divide by 32 to get the index
-    const cellX = Math.floor(x / 32);
-    const cellY = Math.floor(y / 32);
-    grid[cellY][cellX] = 1;
-  });
-
-  return (
-    <div>
-      <h2>Agent Grid</h2>
-      <div
-        className="grid grid-cols-[repeat(50,_minmax(0,_1fr))] gap-0.5"
-        style={{ aspectRatio: "1 / 1" }} // Optional for perfect square cells
-      >
-        {Array.from({ length: 2500 }).map((_, index) => (
-          <div
-            key={index}
-            className="w-5 h-5 bg-slate-950 border border-gray-700"
-          >
-            {grid[Math.floor(index / 50)][index % 50] === 1 && (
-              <div className="w-full h-full bg-blue-500"></div>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
